@@ -23,7 +23,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private GameObject shadowPrefab;
     private GameObject shadowInstance;
     //[Header("Animation")]
-    private enum state { idle, walk };
+    private enum state { idle, walk, jump, fall, slide };
     state playerState;
     private Animator playerAnimator;
     [Header("Jump")]
@@ -191,10 +191,10 @@ public class PlayerMovement : MonoBehaviour
             canDash = true;
         }
 
-        if (Input.GetButtonDown("Jump") && isDashing && yRaw==0)
+        if (Input.GetButtonDown("Jump") && isDashing && yRaw == 0)
         {
             isTryingToJumpDuringDash = true;
-            
+
         }
 
     }
@@ -208,7 +208,7 @@ public class PlayerMovement : MonoBehaviour
                 Run(0.2f);
             }
         }
-        if (isDashing||isTryingToJumpDuringDash)
+        if (isDashing || isTryingToJumpDuringDash)
         {
             Run(0.2f);
         }
@@ -233,6 +233,15 @@ public class PlayerMovement : MonoBehaviour
         {
             playerState = state.idle;
         }
+
+        if (isFalling) {
+            playerState = state.fall;
+        }
+        else if (isJumping || isJumpCut)
+        {
+            playerState = state.jump;
+        }
+        
         playerAnimator.SetInteger("playerState", (int)playerState);
     }
     private void Flip()
@@ -340,12 +349,13 @@ public class PlayerMovement : MonoBehaviour
         jumpBufferTime = 0;
         if (isTryingToJumpDuringDash)
         {
-            jumpForce = jumpMaxForce *1/1.3f;
+            jumpForce = jumpMaxForce * 1 / 1.3f;
         }
-        else {
+        else
+        {
             jumpForce = jumpMaxForce;
         }
-        
+
         if (rb.velocity.y < 0)
         {
             jumpForce = jumpForce + (-rb.velocity.y);
@@ -458,13 +468,13 @@ public class PlayerMovement : MonoBehaviour
 
 
 
-                rb.velocity = new Vector2(dir.normalized.x*40, rb.velocity.y);
+                rb.velocity = new Vector2(dir.normalized.x * 30, rb.velocity.y);
                 // Exit the coroutine
-                
-                
+
+
                 canDash = false;
                 isDashing = false;
-                
+
             }
             else
             {
@@ -487,5 +497,5 @@ public class PlayerMovement : MonoBehaviour
         yield return new WaitForSecondsRealtime(duration); //Must be Realtime since timeScale with be 0 
         Time.timeScale = 1;
     }
-    
+
 }
