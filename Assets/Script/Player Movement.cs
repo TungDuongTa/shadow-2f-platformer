@@ -1,6 +1,7 @@
 using JetBrains.Annotations;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
@@ -35,8 +36,8 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float jumpTimeToApex;
     [SerializeField] private float jumpBufferTime;
     [SerializeField] private bool isJumping;
-    [SerializeField] private bool isFalling;
-    [SerializeField] private bool isJumpCut;
+    public bool isFalling;
+    [SerializeField] public bool isJumpCut;
     [Header("Collision")]
     [SerializeField] private GameObject groundCheck;
     [SerializeField] private GameObject wallCheck;
@@ -59,6 +60,15 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private bool canDash;
     [SerializeField] private float lastTimeSinceDashed;
     [SerializeField] private bool isTryingToJumpDuringDash;
+
+    public bool isOnPlatForm;
+    public Rigidbody2D platformRb;
+
+
+    [SerializeField] private float topRayCastLength;
+    [SerializeField] private Vector3 edgeRaycastOffSet;
+    [SerializeField] private Vector3 innerRayCastOffSet;
+    public bool canCorrectCorer;
     // Start is called before the first frame update
     private void Awake()
     {
@@ -75,6 +85,7 @@ public class PlayerMovement : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+
         lastTimeSinceDashed += Time.deltaTime;
         groundTime -= Time.deltaTime;
         jumpBufferTime -= Time.deltaTime;
@@ -205,14 +216,17 @@ public class PlayerMovement : MonoBehaviour
             Run(1);
             if (isWallJumping)
             {
-                Run(0.2f);
+                Run(0.5f);
             }
         }
         if (isDashing || isTryingToJumpDuringDash)
         {
-            Run(0.2f);
+            Run(0.5f);
         }
-
+        CheckHead();
+        if (canCorrectCorer) {
+            CorrectCorner(rb.velocity.y);
+        }
 
 
     }
@@ -234,14 +248,15 @@ public class PlayerMovement : MonoBehaviour
             playerState = state.idle;
         }
 
-        if (isFalling) {
+        if (isFalling)
+        {
             playerState = state.fall;
         }
         else if (isJumping || isJumpCut)
         {
             playerState = state.jump;
         }
-        
+
         playerAnimator.SetInteger("playerState", (int)playerState);
     }
     private void Flip()
@@ -274,8 +289,8 @@ public class PlayerMovement : MonoBehaviour
     }
     private void CollisionCheck()
     {
-        Vector2 groundCheckSize = new Vector2(0.7f, 0.1f);
-        Vector2 wallCheckSize = new Vector2(0.2f, 1f);
+        Vector2 groundCheckSize = new Vector2(0.4f, 0.05f);
+        Vector2 wallCheckSize = new Vector2(0.1f, 0.5f);
         if (Physics2D.OverlapBox(groundCheck.transform.position, groundCheckSize, 0, groundLayer)) //checks if set box overlaps with ground
         {
             groundTime = coyoteTime; //if so sets the lastGrounded to coyoteTime
@@ -293,19 +308,38 @@ public class PlayerMovement : MonoBehaviour
 
         wallTime = Mathf.Max(rightWallTime, leftWallTime);
     }
-    private void Run(float lerfValue)
+    public void Run(float lerfValue)
     {
-        targetSpeed = xRaw * runMaxSpeed;
-        targetSpeed = Mathf.Lerp(rb.velocity.x, targetSpeed, lerfValue);
-        if (groundTime > 0)
+
+        if (isOnPlatForm)
         {
-            accelRate = (Mathf.Abs(targetSpeed) > .1f) ? runAccel : runDeccel;
+            targetSpeed = xRaw * runMaxSpeed + platformRb.velocity.x;
+            if (xRaw != 0)
+            {
+                targetSpeed = xRaw * runMaxSpeed;
+            }
         }
         else
         {
-            accelRate = (Mathf.Abs(targetSpeed) > .1f) ? runAccel * 0.3f : runDeccel * 0.3f;
+            targetSpeed = xRaw * runMaxSpeed;
+        }
+
+        targetSpeed = Mathf.Lerp(rb.velocity.x, targetSpeed, lerfValue);
+        if (isOnPlatForm && groundTime > 0)
+        {
+            accelRate = (Mathf.Abs(targetSpeed) == Mathf.Abs(platformRb.velocity.x)) ? runDeccel : runAccel;
+        }
+        else if (groundTime > 0)
+        {
+            accelRate = (Mathf.Abs(targetSpeed) > .1f) ? runAccel : runDeccel;
+        }
+
+        else
+        {
+            accelRate = (Mathf.Abs(targetSpeed) > .1f) ? runAccel * 0.5f : runDeccel * 0.5f;
 
         }
+
 
         if ((isJumping || isFalling) && Mathf.Abs(rb.velocity.y) < 20)
         {
@@ -368,7 +402,7 @@ public class PlayerMovement : MonoBehaviour
     private void gravityControl()
     {
         float fallMultiply = 1.5f;
-        float jumpCutFallMultiply = 2.5f;
+        float jumpCutFallMultiply = 2.0f;
         if (!isDashing)
         {
             if (isSliding)
@@ -377,13 +411,13 @@ public class PlayerMovement : MonoBehaviour
             }
             else if (rb.velocity.y < 0 && yRaw < 0)
             {
-                rb.gravityScale = gravityScale * jumpCutFallMultiply * 3f;
-                rb.velocity = new Vector2(rb.velocity.x, Mathf.Max(rb.velocity.y, -55));
+                rb.gravityScale = gravityScale * jumpCutFallMultiply * 1.5f;
+                rb.velocity = new Vector2(rb.velocity.x, Mathf.Max(rb.velocity.y, -40));
             }
             else if (isJumpCut)
             {
                 rb.gravityScale = gravityScale * jumpCutFallMultiply;
-                rb.velocity = new Vector2(rb.velocity.x, Mathf.Max(rb.velocity.y, -35));
+                rb.velocity = new Vector2(rb.velocity.x, Mathf.Max(rb.velocity.y, -25));
             }
 
             else if ((isJumping) && Mathf.Abs(rb.velocity.y) < 3)
@@ -393,13 +427,17 @@ public class PlayerMovement : MonoBehaviour
             else if (isFalling)
             {
                 rb.gravityScale = gravityScale * fallMultiply;
-                rb.velocity = new Vector2(rb.velocity.x, Mathf.Max(rb.velocity.y, -25f));
+                rb.velocity = new Vector2(rb.velocity.x, Mathf.Max(rb.velocity.y, -15f));
+            }
+            else if (isOnPlatForm && !Input.GetButton("Jump"))
+            {
+                rb.gravityScale = 150;
             }
 
             else
             {
                 rb.gravityScale = gravityScale;
-                rb.velocity = new Vector2(rb.velocity.x, Mathf.Max(rb.velocity.y, -25f));
+                rb.velocity = new Vector2(rb.velocity.x, Mathf.Max(rb.velocity.y, -15f));
             }
         }
         else
@@ -411,8 +449,8 @@ public class PlayerMovement : MonoBehaviour
 
     private void Slide()
     {
-        float slideTargetSpeed = -5f;
-        float slideAccelRate = 4f;
+        float slideTargetSpeed = -2f;
+        float slideAccelRate = 2f;
         if (rb.velocity.y > 0 && !isWallJumping)
         {
             rb.AddForce(-rb.velocity.y * Vector2.up, ForceMode2D.Impulse);
@@ -428,7 +466,7 @@ public class PlayerMovement : MonoBehaviour
         groundTime = 0;
         jumpBufferTime = 0;
         wallTime = 0;
-        Vector2 wallJumpForce = new Vector2(15, 25);
+        Vector2 wallJumpForce = new Vector2(13, 20);
 
         if (rightWallTime > 0)
         {
@@ -452,7 +490,7 @@ public class PlayerMovement : MonoBehaviour
     {
         groundTime = 0;
         dashBuffer = 0;
-        float dashSpeed = 20f;
+        float dashSpeed = 10f;
         float startTime = Time.time;
         rb.gravityScale = 0;
         lastTimeSinceDashed = 0;
@@ -465,21 +503,15 @@ public class PlayerMovement : MonoBehaviour
             //This is a cleaner implementation opposed to multiple timers and this coroutine approach is actually what is used in Celeste :D
             if (isTryingToJumpDuringDash)
             {
-
-
-
-                rb.velocity = new Vector2(dir.normalized.x * 30, rb.velocity.y);
+                rb.velocity = new Vector2(dir.normalized.x * 20, rb.velocity.y);
                 // Exit the coroutine
-
-
                 canDash = false;
                 isDashing = false;
-
             }
             else
             {
                 rb.velocity = dir.normalized * dashSpeed;
-                Debug.Log($"Dash Velocity: {rb.velocity}");
+
             }
             yield return null;
         }
@@ -496,6 +528,48 @@ public class PlayerMovement : MonoBehaviour
         Time.timeScale = 0;
         yield return new WaitForSecondsRealtime(duration); //Must be Realtime since timeScale with be 0 
         Time.timeScale = 1;
+    }
+
+
+    void CorrectCorner(float yVelocity)
+    {
+        RaycastHit2D hit = Physics2D.Raycast(transform.position - innerRayCastOffSet + Vector3.up * topRayCastLength, Vector3.left, topRayCastLength, groundLayer);
+        if (hit.collider != null)
+        {
+            float newPos = Vector3.Distance(new Vector3(hit.point.x, transform.position.y, 0f) + Vector3.up * topRayCastLength,
+                transform.position - edgeRaycastOffSet + Vector3.up * topRayCastLength);
+            transform.position = new Vector3(transform.position.x + newPos, transform.position.y, transform.position.z);
+            rb.velocity = new Vector2(rb.velocity.x, yVelocity);
+            return;
+        }
+         hit = Physics2D.Raycast(transform.position + innerRayCastOffSet + Vector3.up * topRayCastLength, Vector3.right, topRayCastLength, groundLayer);
+        if (hit.collider != null)
+        {
+            float newPos = Vector3.Distance(new Vector3(hit.point.x, transform.position.y, 0f) + Vector3.up * topRayCastLength,
+                transform.position + edgeRaycastOffSet + Vector3.up * topRayCastLength);
+            transform.position = new Vector3(transform.position.x - newPos, transform.position.y, transform.position.z);
+            rb.velocity = new Vector2(rb.velocity.x, yVelocity);
+            
+        }
+    }
+    void CheckHead() {
+        canCorrectCorer = Physics2D.Raycast(transform.position + edgeRaycastOffSet, Vector2.up, topRayCastLength, groundLayer) &&
+            !Physics2D.Raycast(transform.position + innerRayCastOffSet, Vector2.up, topRayCastLength, groundLayer) ||
+            Physics2D.Raycast(transform.position - edgeRaycastOffSet, Vector2.up, topRayCastLength, groundLayer) &&
+            !Physics2D.Raycast(transform.position - innerRayCastOffSet, Vector2.up, topRayCastLength, groundLayer);
+    }
+    private void OnDrawGizmos()
+    {
+        Gizmos.DrawLine(transform.position + edgeRaycastOffSet, transform.position + edgeRaycastOffSet + Vector3.up * topRayCastLength);
+        Gizmos.DrawLine(transform.position - edgeRaycastOffSet, transform.position - edgeRaycastOffSet + Vector3.up * topRayCastLength);
+        Gizmos.DrawLine(transform.position + edgeRaycastOffSet, transform.position + innerRayCastOffSet + Vector3.up * topRayCastLength);
+        Gizmos.DrawLine(transform.position - edgeRaycastOffSet, transform.position - innerRayCastOffSet + Vector3.up * topRayCastLength);
+
+
+        Gizmos.DrawLine(transform.position - innerRayCastOffSet + Vector3.up * topRayCastLength,
+            transform.position - innerRayCastOffSet + Vector3.up * topRayCastLength + Vector3.left * topRayCastLength);
+        Gizmos.DrawLine(transform.position + innerRayCastOffSet + Vector3.up * topRayCastLength,
+            transform.position + innerRayCastOffSet + Vector3.up * topRayCastLength + Vector3.right * topRayCastLength);
     }
 
 }
