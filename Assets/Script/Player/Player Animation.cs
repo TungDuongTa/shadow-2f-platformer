@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class PlayerAnimation : MonoBehaviour
 {
-    public enum state { idle, walk, jump, fall, wallSlide };
+    public enum state { idle, walk, jump, fall, wallSlide,floating };
     public state playerState;
     private Animator playerAnimator;
     private PlayerMovement player;
@@ -28,6 +28,7 @@ public class PlayerAnimation : MonoBehaviour
         {
             playerState = state.walk;
         }
+       
         else
         {
             playerState = state.idle;
@@ -37,7 +38,10 @@ public class PlayerAnimation : MonoBehaviour
         {
             playerState = state.fall;
         }
-        else if (player.isJumping || player.isJumpCut)
+        else if (player.floating|| player.isTryingToJumpDuringDash) {
+            playerState = state.floating;
+        }
+        else if (player.isJumping || player.isJumpCut ||player.isWallJumping)
         {
             playerState = state.jump;
         }

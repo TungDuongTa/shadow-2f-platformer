@@ -52,7 +52,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float rightWallTime;
     [SerializeField] private float leftWallTime;
     public bool isSliding;
-    [SerializeField] private bool isWallJumping;
+    [SerializeField] public bool isWallJumping;
     [SerializeField] private float wallJumpTime;
 
 
@@ -60,7 +60,8 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float dashBuffer;
     [SerializeField] private bool canDash;
     [SerializeField] private float lastTimeSinceDashed;
-    [SerializeField] private bool isTryingToJumpDuringDash;
+    [SerializeField] public bool isTryingToJumpDuringDash;
+    public bool floating;
 
     public bool isOnPlatForm;
     public Rigidbody2D platformRb;
@@ -74,6 +75,8 @@ public class PlayerMovement : MonoBehaviour
     public GhostTrail ghost;
     public CinemachineVirtualCamera cam;
     public int ghostCount;
+
+    public ParticleSystem dust;
     // Start is called before the first frame update
     private void Awake()
     {
@@ -125,6 +128,7 @@ public class PlayerMovement : MonoBehaviour
             if (jumpBufferTime > 0 && groundTime > 0 && !isJumping)
             {
                 Jump();
+                dust.Play();
                 isJumping = true;
                 isFalling = false;
                 isJumpCut = false;
@@ -252,6 +256,9 @@ public class PlayerMovement : MonoBehaviour
             Vector3 scale = transform.localScale;
             scale.x *= -1;
             transform.localScale = scale;
+            if (groundTime > 0) {
+                dust.Play();
+            }
         }
 
     }
@@ -279,16 +286,29 @@ public class PlayerMovement : MonoBehaviour
         if (Physics2D.OverlapBox(groundCheck.transform.position, groundCheckSize, 0, groundLayer)) //checks if set box overlaps with ground
         {
             groundTime = coyoteTime; //if so sets the lastGrounded to coyoteTime
+            if (!isDashing) {
+                floating = false;
+            }
+            
         }
         if ((Physics2D.OverlapBox(rightWallCheck.transform.position, wallCheckSize, 0, wallLayer) && isFacingRight) ||
                 (Physics2D.OverlapBox(leftWallCheck.transform.position, wallCheckSize, 0, wallLayer) && !isFacingRight)) //checks if set box overlaps with ground
         {
             rightWallTime = coyoteTime; //if so sets the lastGrounded to coyoteTime
+            if (!isDashing)
+            {
+                floating = false;
+            }
         }
         if ((Physics2D.OverlapBox(leftWallCheck.transform.position, wallCheckSize, 0, wallLayer) && isFacingRight) ||
                 (Physics2D.OverlapBox(rightWallCheck.transform.position, wallCheckSize, 0, wallLayer) && !isFacingRight)) //checks if set box overlaps with ground
         {
             leftWallTime = coyoteTime; //if so sets the lastGrounded to coyoteTime
+            if (!isDashing)
+            {
+                floating = false;
+            }
+
         }
 
         wallTime = Mathf.Max(rightWallTime, leftWallTime);
@@ -482,6 +502,7 @@ public class PlayerMovement : MonoBehaviour
         rb.gravityScale = 0;
         lastTimeSinceDashed = 0;
         isTryingToJumpDuringDash = false;
+        
         //dash time
         while (Time.time - startTime <= 0.2)
         {
@@ -490,7 +511,7 @@ public class PlayerMovement : MonoBehaviour
             //This is a cleaner implementation opposed to multiple timers and this coroutine approach is actually what is used in Celeste :D
             if (isTryingToJumpDuringDash)
             {
-                
+                floating = true;
                 rb.velocity = new Vector2(dir.normalized.x * 40, rb.velocity.y);
                 // Exit the coroutine
                 canDash = false;
